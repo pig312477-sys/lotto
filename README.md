@@ -8,11 +8,15 @@
 
 ## 결과
 
-- 검증된 효과: 공동당첨자 **평균 대비 7.4% 감소** (표본 밖, 순열검정 p=0.011)
-- 환급률 **50.3% → 52.5%** (기댓값 +4.3%)
-- ⚠️ 효과가 시간에 따라 감소 중. `progress.md` 참조
+- 검증된 효과: 표본 밖 Spearman ρ=+0.166, 순열검정 **p=0.0028** (347회차)
+- 환급률 **50.3% → 53.5%** (기댓값 +6.5%)
+- 효과는 **시대별로 안정적** (옛날 vs 최근 차이 p=0.87/0.99/0.40)
 
-> **기댓값은 여전히 음수다.** 1,000원을 내고 약 525원을 기대하는 게임이다.
+**방법**: 1등 당첨자의 자동/수동 구분을 이용한다. 자동 구매는 균등난수라
+번호 편향이 0이므로 **대조군**이 된다. 같은 회차에서 수동/자동 당첨자 비를 보면
+판매량과 시대 변화가 상쇄되고 사람의 순수 편향만 남는다.
+
+> **기댓값은 여전히 음수다.** 1,000원을 내고 약 535원을 기대하는 게임이다.
 > 이 도구는 로또를 이기게 하지 않는다. 손실 폭을 줄일 뿐이다.
 
 ## 사용법
@@ -20,7 +24,7 @@
 ```bash
 python3 -m venv .venv && .venv/bin/pip install numpy scipy statsmodels
 curl -o data/all.json https://raw.githubusercontent.com/smok95/lotto/master/results/all.json
-.venv/bin/python src/recommend.py --n 10
+.venv/bin/python src/popularity_v3.py --n 10
 ```
 
 ## 구조
@@ -32,7 +36,9 @@ curl -o data/all.json https://raw.githubusercontent.com/smok95/lotto/master/resu
 | `progress.md` | 진행 기록. **세션 시작 시 먼저 읽을 것** |
 | `src/features.py` | 조합 특징 10종 |
 | `src/popularity.py` | 음이항 인기도 모델 |
-| `src/recommend.py` | 추천 조합 생성 (외삽 차단 포함) |
+| `src/popularity_v3.py` | **정식 모델 + 추천 생성** (대조군 방식) |
+| `src/recommend.py` | v1 (총당첨자수 기반). 보존용 |
+| `src/recommend_v2.py` | v2 실패 기록. 사용 금지 |
 | `verify/score.py` | **봉인 채점기 — 수정 금지.** 1048~1247회, 최종 1회만 |
 
 ## 데이터
