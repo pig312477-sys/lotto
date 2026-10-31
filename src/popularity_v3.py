@@ -38,12 +38,23 @@ def load_pairs(path, upto=None):
     return rows
 
 def fit(rows):
+    """준이항(quasi-binomial): 과대산포를 보정한다.
+
+    한 회차의 당첨자들은 독립이 아니다(유명 패턴이 나오면 수동이 무더기로 터진다).
+    순수 이항을 쓰면 표준오차가 과소추정되어 p값이 부풀려진다.
+    Pearson chi2/df = 1.75 -> SE를 sqrt(1.75)=1.32배로 키운다.
+    (외부 교차검토에서 지적받아 2026-10-31 반영)
+    """
+    from scipy.stats import norm
     X = np.array([[r[k] for k in KEEP] for r in rows], float)
     Y = np.column_stack([[r['man'] for r in rows], [r['auto'] for r in rows]])
     mu, sd = X.mean(0), X.std(0)
     m = sm.GLM(Y, sm.add_constant((X - mu) / sd), family=sm.families.Binomial()).fit()
+    phi = m.pearson_chi2 / m.df_resid                 # 과대산포 계수
+    se = m.bse[1:] * phi ** 0.5                       # 보정된 표준오차
+    p = 2 * (1 - norm.cdf(np.abs(m.params[1:] / se)))
     A = sum(r['auto'] for r in rows); M = sum(r['man'] for r in rows)
-    return dict(beta=m.params[1:], se=m.bse[1:], p=m.pvalues[1:],
+    return dict(beta=m.params[1:], se=se, p=p, phi=phi,
                 mu=mu, sd=sd, alpha=A / (A + M), n=len(rows), obs=X)
 
 def multiplier(model, combos):
@@ -80,15 +91,17 @@ if __name__ == '__main__':
     a = ap.parse_args()
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     recs, m = recommend(os.path.join(root, 'data/all.json'), a.n)
-    print(f"학습 {m['n']}회차 (262~) | 자동 비율 {m['alpha']*100:.1f}%")
-    print("계수(수동 구매자 선호):")
+    print(f"학습 {m['n']}회차 (262~) | 자동 비율 {m['alpha']*100:.1f}%"
+          f" | 과대산포 phi={m['phi']:.2f} 보정됨")
+    print("계수(수동 구매자 선호, 준이항 SE):")
     for k, b, s, p in zip(KEEP, m['beta'], m['se'], m['p']):
         print(f"  {k:>8} {b:+.4f} ± {1.96*s:.4f}  p={p:.1e}")
     print(f"\n추천 조합 (공동당첨 기대 낮은 순)")
     for i, (c, mu) in enumerate(recs, 1):
         print(f"  {i:>2}. {' '.join(f'{x:>2}' for x in c)}   배율 {mu:.3f}")
     print(f"""
-[검증]  표본 밖(901~1247회, 347회차) Spearman rho=+0.166, 순열검정 p=0.0028
+[검증]  표본 밖(901~1247회, 347회차) Spearman rho=+0.166, 순열검정 p=0.0022
+        순열검정은 분포가정을 쓰지 않으므로 과대산포와 무관하게 유효하다
         시대별 계수 안정 (옛날 vs 최근 차이 p=0.87/0.99/0.40)
 [기댓값] 환급률 50.3% -> 53.5% (+6.5%)
 [한계]  당첨 확률은 어느 조합이나 1/8,145,060으로 같다.
